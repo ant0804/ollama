@@ -16,7 +16,7 @@ fi
 
 
 sed -i \
-'s/"llama-server"/"training-server"/g' \
+'s/"llama-server"/"python"/g' \
 "$FILE"
 
 
