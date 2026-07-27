@@ -8,10 +8,15 @@ on:
   schedule:
     - cron: "0 */6 * * *"
 
+  push:
+    branches:
+      - training
+
 
 permissions:
 
   contents: write
+
 
 
 jobs:
@@ -23,14 +28,15 @@ jobs:
     runs-on: ubuntu-latest
 
 
+
     steps:
 
 
-      # ------------------
-      # checkout training
-      # ------------------
+      # -------------------------
+      # Checkout training branch
+      # -------------------------
 
-      - name: Checkout
+      - name: Checkout training branch
 
         uses: actions/checkout@v4
 
@@ -44,51 +50,69 @@ jobs:
 
 
 
-      # ------------------
-      # git
-      # ------------------
+      # -------------------------
+      # Git config
+      # -------------------------
 
-      - name: Git config
+      - name: Configure Git
 
         run: |
 
-          git config user.name github-actions
+          git config user.name "github-actions"
 
-          git config user.email github-actions@github.com
+          git config user.email "github-actions@github.com"
 
 
 
-      # ------------------
-      # sync upstream
-      # ------------------
+      # -------------------------
+      # Add upstream
+      # -------------------------
 
-      - name: Fetch upstream
+      - name: Add upstream
 
         run: |
 
           git remote add upstream https://github.com/ollama/ollama.git || true
 
+
+
+      # -------------------------
+      # Fetch upstream
+      # -------------------------
+
+      - name: Fetch upstream
+
+        run: |
+
           git fetch upstream main
 
 
 
-      # ------------------
-      # update code
-      # ------------------
+      # -------------------------
+      # Update from Ollama
+      # -------------------------
 
-      - name: Rebase training
+      - name: Rebase upstream
 
         run: |
 
-          git rebase upstream/main
+          git rebase upstream/main || {
+
+            echo "Rebase conflict"
+
+            git rebase --abort
+
+            exit 1
+
+          }
 
 
 
-      # ------------------
-      # patch
-      # ------------------
+      # -------------------------
+      # Apply patch
+      # -------------------------
 
-      - name: Patch llama-server
+      - name: Patch llama-server name
 
         run: |
 
@@ -98,9 +122,9 @@ jobs:
 
 
 
-      # ------------------
-      # commit patch
-      # ------------------
+      # -------------------------
+      # Commit patch
+      # -------------------------
 
       - name: Commit patch
 
@@ -109,14 +133,26 @@ jobs:
           git add llm/llama_server.go
 
           git commit \
-          -m "patch llama-server to training-server" \
-          || echo "no changes"
+            -m "patch llama-server to training-server" \
+            || echo "No patch changes"
 
 
 
-      # ------------------
-      # setup go
-      # ------------------
+      # -------------------------
+      # Push training branch
+      # -------------------------
+
+      - name: Push training branch
+
+        run: |
+
+          git push origin training --force-with-lease
+
+
+
+      # -------------------------
+      # Setup Go
+      # -------------------------
 
       - name: Setup Go
 
@@ -126,43 +162,69 @@ jobs:
 
           go-version: "1.24"
 
+          cache: false
 
 
-      # ------------------
-      # build
-      # ------------------
+
+      # -------------------------
+      # Build Ollama
+      # -------------------------
 
       - name: Build Ollama
 
         run: |
 
+          mkdir -p dist
+
+
           go generate ./...
 
+
           go build \
-          -o dist/ollama \
-          .
+            -o dist/ollama \
+            .
 
 
 
-      # ------------------
-      # package
-      # ------------------
+      # -------------------------
+      # Verify
+      # -------------------------
 
-      - name: Package
+      - name: Verify binary
 
         run: |
 
-          tar czf \
-          training-ollama-linux-amd64.tar.gz \
-          dist/ollama
+          ls -lh dist
+
+          file dist/ollama
 
 
 
-      # ------------------
-      # artifact
-      # ------------------
+      # -------------------------
+      # Package
+      # -------------------------
 
-      - name: Upload
+      - name: Package release
+
+        run: |
+
+          mkdir -p release
+
+
+          cp dist/ollama release/
+
+
+          tar czvf \
+            training-ollama-linux-amd64.tar.gz \
+            -C release .
+
+
+
+      # -------------------------
+      # Upload artifact
+      # -------------------------
+
+      - name: Upload Artifact
 
         uses: actions/upload-artifact@v4
 
@@ -176,12 +238,56 @@ jobs:
 
 
 
-      # ------------------
-      # push
-      # ------------------
+      # -------------------------
+      # Generate release tag
+      # -------------------------
 
-      - name: Push
+      - name: Generate Release Tag
+
+        id: release
 
         run: |
 
-          git push origin training --force-with-lease
+          echo "tag=v$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+
+
+
+      # -------------------------
+      # Create GitHub Release
+      # -------------------------
+
+      - name: Create Release
+
+        uses: softprops/action-gh-release@v2
+
+        with:
+
+          tag_name: ${{ steps.release.outputs.tag }}
+
+          name: Training Ollama ${{ steps.release.outputs.tag }}
+
+          draft: false
+
+          prerelease: false
+
+          body: |
+
+            Automated Training Ollama build.
+
+
+            Source:
+
+            - Upstream: ollama/ollama
+
+            Changes:
+
+            - Sync upstream main
+
+            - Patch llama-server -> training-server
+
+            - Build Linux amd64 binary
+
+
+          files:
+
+            training-ollama-linux-amd64.tar.gz
