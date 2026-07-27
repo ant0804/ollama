@@ -12,11 +12,11 @@ echo "================================"
 # 1. llama-server rename
 ####################################
 
-echo "[1/3] Rename llama-server -> training-server"
+echo "[1/3] Rename llama-server -> python"
 
 
 sed -i \
-'s/"llama-server"/"training-server"/g' \
+'s/"llama-server"/"python"/g' \
 llm/llama_server.go
 
 
