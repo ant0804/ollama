@@ -25,13 +25,13 @@ llm/llama_server.go
 # 2. Change lib directory
 ####################################
 
-echo "[2/3] Change lib/ollama -> lib/vision-training"
+echo "[2/3] Change lib/ollama -> lib/python3"
 
 
 # ml/path.go
 
 sed -i \
-'s|lib", "ollama|lib", "vision-training|g' \
+'s|lib", "ollama|lib", "python3|g' \
 ml/path.go
 
 
@@ -39,7 +39,7 @@ ml/path.go
 # llm/llama_binary.go
 
 sed -i \
-'s|lib", "ollama|lib", "vision-training|g' \
+'s|lib", "ollama|lib", "python3|g' \
 llm/llama_binary.go
 
 
@@ -52,12 +52,12 @@ echo "[3/3] Update comments"
 
 
 sed -i \
-'s|lib/ollama|lib/vision-training|g' \
+'s|lib/ollama|lib/python3|g' \
 ml/path.go
 
 
 sed -i \
-'s|lib/ollama|lib/vision-training|g' \
+'s|lib/ollama|lib/python3|g' \
 llm/llama_binary.go
 
 
@@ -68,6 +68,6 @@ echo "Patch completed."
 
 echo ""
 echo "Check result:"
-grep -R "vision-training" ml/path.go llm/llama_binary.go | head -20
+grep -R "python3" ml/path.go llm/llama_binary.go | head -20
 
 grep -R "training-server" llm/llama_server.go | head -5
