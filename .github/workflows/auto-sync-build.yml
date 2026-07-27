@@ -1,0 +1,73 @@
+name: Auto Sync, Rename & Build Vision
+
+on:
+  schedule:
+    # 每天 UTC 00:00 (北京时间早 8 点) 自动触发检查
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 支持在 Actions 页面手动点击触发
+
+jobs:
+  sync-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      releases: write
+
+    steps:
+      # 1. Checkout 仓库代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. 从官方 upstream 同步最新代码
+      - name: Sync with Upstream Ollama
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git remote add upstream https://github.com/ollama/ollama.git || true
+          git fetch upstream
+          
+          # 合并上游 main 分支
+          git merge upstream/main -m "chore: auto-sync with upstream ollama" || {
+            echo "Merge conflicts detected!"
+            exit 1
+          }
+          git push origin main
+
+      # 3. 配置 Go 编译环境
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      # 4. 替换名称 & 编译可执行文件
+      - name: Replace Names and Build Binary
+        run: |
+          echo "Replacing llama-server with vision-server..."
+          # 替换逻辑：精准替换二进制输出与 CLI 依赖名称，避免破坏 Go 内部 package 路径
+          find . -type f \( -name "*.go" -o -name "Makefile" -o -name "CMakeLists.txt" \) \
+            -not -path '*/.git/*' \
+            -exec sed -i 's/llama-server/vision-server/g' {} +
+
+          echo "Replacing ollama binary target with vision..."
+          # 将编译入口 main.go 输出文件名或构建流程中的目标名指定为 vision
+          go build -o vision main.go
+
+      # 5. 上传构建产物 (或自动发布到 Release)
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-linux-amd64
+          path: vision
+
+      - name: Create Release (Optional)
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: vision
+          tag_name: "vision-v${{ github.run_number }}"
+          name: "Vision Release v${{ github.run_number }}"
+          draft: false
+          prerelease: false
