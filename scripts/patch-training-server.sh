@@ -3,21 +3,71 @@
 set -e
 
 
-FILE="llm/llama_server.go"
+echo "================================"
+echo "Patch Training Server"
+echo "================================"
 
 
-echo "Applying training-server patch"
+####################################
+# 1. llama-server rename
+####################################
 
-
-if [ ! -f "$FILE" ]; then
-    echo "$FILE not found"
-    exit 1
-fi
+echo "[1/3] Rename llama-server -> training-server"
 
 
 sed -i \
 's/"llama-server"/"training-server"/g' \
-"$FILE"
+llm/llama_server.go
 
 
-echo "Patch completed"
+
+####################################
+# 2. Change lib directory
+####################################
+
+echo "[2/3] Change lib/ollama -> lib/vision-training"
+
+
+# ml/path.go
+
+sed -i \
+'s|lib", "ollama|lib", "vision-training|g' \
+ml/path.go
+
+
+
+# llm/llama_binary.go
+
+sed -i \
+'s|lib", "ollama|lib", "vision-training|g' \
+llm/llama_binary.go
+
+
+
+####################################
+# 3. Replace comments(optional)
+####################################
+
+echo "[3/3] Update comments"
+
+
+sed -i \
+'s|lib/ollama|lib/vision-training|g' \
+ml/path.go
+
+
+sed -i \
+'s|lib/ollama|lib/vision-training|g' \
+llm/llama_binary.go
+
+
+
+echo ""
+echo "Patch completed."
+
+
+echo ""
+echo "Check result:"
+grep -R "vision-training" ml/path.go llm/llama_binary.go | head -20
+
+grep -R "training-server" llm/llama_server.go | head -5
