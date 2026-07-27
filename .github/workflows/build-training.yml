@@ -1,0 +1,187 @@
+name: Build Training Ollama
+
+
+on:
+
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 */6 * * *"
+
+
+permissions:
+
+  contents: write
+
+
+jobs:
+
+
+  build:
+
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+
+      # ------------------
+      # checkout training
+      # ------------------
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+        with:
+
+          ref: training
+
+          fetch-depth: 0
+
+          token: ${{ secrets.PAT_TOKEN }}
+
+
+
+      # ------------------
+      # git
+      # ------------------
+
+      - name: Git config
+
+        run: |
+
+          git config user.name github-actions
+
+          git config user.email github-actions@github.com
+
+
+
+      # ------------------
+      # sync upstream
+      # ------------------
+
+      - name: Fetch upstream
+
+        run: |
+
+          git remote add upstream https://github.com/ollama/ollama.git || true
+
+          git fetch upstream main
+
+
+
+      # ------------------
+      # update code
+      # ------------------
+
+      - name: Rebase training
+
+        run: |
+
+          git rebase upstream/main
+
+
+
+      # ------------------
+      # patch
+      # ------------------
+
+      - name: Patch llama-server
+
+        run: |
+
+          chmod +x scripts/patch-training-server.sh
+
+          scripts/patch-training-server.sh
+
+
+
+      # ------------------
+      # commit patch
+      # ------------------
+
+      - name: Commit patch
+
+        run: |
+
+          git add llm/llama_server.go
+
+          git commit \
+          -m "patch llama-server to training-server" \
+          || echo "no changes"
+
+
+
+      # ------------------
+      # setup go
+      # ------------------
+
+      - name: Setup Go
+
+        uses: actions/setup-go@v5
+
+        with:
+
+          go-version: "1.24"
+
+
+
+      # ------------------
+      # build
+      # ------------------
+
+      - name: Build Ollama
+
+        run: |
+
+          go generate ./...
+
+          go build \
+          -o dist/ollama \
+          .
+
+
+
+      # ------------------
+      # package
+      # ------------------
+
+      - name: Package
+
+        run: |
+
+          tar czf \
+          training-ollama-linux-amd64.tar.gz \
+          dist/ollama
+
+
+
+      # ------------------
+      # artifact
+      # ------------------
+
+      - name: Upload
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: training-ollama-linux-amd64
+
+          path:
+
+            training-ollama-linux-amd64.tar.gz
+
+
+
+      # ------------------
+      # push
+      # ------------------
+
+      - name: Push
+
+        run: |
+
+          git push origin training --force-with-lease
