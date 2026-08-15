@@ -337,7 +337,7 @@ func (s *llamaServerRunner) ContextLength() int {
 // FindLlamaServer locates the llama-server binary in lib/ollama/.
 // There is a single binary that dynamically loads GPU backends at runtime.
 func FindLlamaServer() (string, error) {
-	path, candidates, err := findLlamaCppBinary("llama-server", defaultLlamaCppBinarySearch())
+	path, candidates, err := findLlamaCppBinary("python", defaultLlamaCppBinarySearch())
 	if err != nil {
 		return "", fmt.Errorf("llama-server binary not found (checked: %s). Run 'cmake -S llama/server --preset cpu && cmake --build --preset cpu' first", strings.Join(candidates, ", "))
 	}
